@@ -1,0 +1,503 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Ethan Liberman</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     LAYOUT CONCEPT: a ground-control instrument console. A fixed
+     instrument bar up top (callsign + nav + live stat ticker),
+     content below organised into bracketed "panel" modules with
+     HUD corner ticks, mono eyebrow labels, and a vertical timeline
+     for the Monash UAS service record.
+     ============================================================ */
+  :root{
+    --bg:#0A0D11;
+    --surface:#12171D;
+    --surface-2:#1A2129;
+    --border:#28323C;
+    --fg:#E9EEF1;
+    --muted:#8CA0AC;
+    --accent:#F0A63D;
+    --accent-ink:#2A1C04;
+    --cyan:#4FD1C0;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#F1F0EC;
+      --surface:#FFFFFF;
+      --surface-2:#E9E7E0;
+      --border:#D6D2C7;
+      --fg:#15191C;
+      --muted:#5B6670;
+      --accent:#C47A12;
+      --accent-ink:#FFF6E8;
+      --cyan:#157A6E;
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#F1F0EC;
+    --surface:#FFFFFF;
+    --surface-2:#E9E7E0;
+    --border:#D6D2C7;
+    --fg:#15191C;
+    --muted:#5B6670;
+    --accent:#C47A12;
+    --accent-ink:#FFF6E8;
+    --cyan:#157A6E;
+    color-scheme: light;
+  }
+
+  *{ box-sizing:border-box; }
+  body{
+    background:var(--bg);
+    color:var(--fg);
+    font-family:"IBM Plex Sans", system-ui, sans-serif;
+    line-height:1.55;
+  }
+  a{ color:inherit; }
+  h1,h2,h3{
+    font-family:"Big Shoulders Display", "Archivo Narrow", system-ui, sans-serif;
+    font-weight:800;
+    letter-spacing:.01em;
+    text-wrap:balance;
+    margin:0 0 .4em;
+  }
+  .mono{ font-family:"IBM Plex Mono", ui-monospace, monospace; }
+  .eyebrow{
+    font-family:"IBM Plex Mono", ui-monospace, monospace;
+    font-size:.72rem;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--accent);
+    margin:0 0 .6em;
+  }
+  .lede{ color:var(--muted); max-width:62ch; font-size:1.02rem; }
+  .muted{ color:var(--muted); }
+  .small{ font-size:.85rem; }
+
+  /* ---------- shell ---------- */
+  .wrap{ max-width:980px; margin:0 auto; padding-inline:20px; }
+
+  .topbar{
+    position:sticky; top:env(safe-area-inset-top,0px); z-index:10;
+    background:color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--border);
+  }
+  .topbar-inner{
+    max-width:980px; margin:0 auto; padding:14px 20px;
+    display:flex; flex-wrap:wrap; gap:12px 24px; align-items:center; justify-content:space-between;
+  }
+  .brand{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .brand-name{ font-family:"Big Shoulders Display",sans-serif; font-weight:900; font-size:1.25rem; letter-spacing:.04em; }
+  .brand-tag{ font-family:"IBM Plex Mono",monospace; font-size:.7rem; color:var(--muted); letter-spacing:.04em; }
+
+  .navbar{ display:flex; gap:4px; flex-wrap:wrap; }
+  .navlink{
+    font-family:"IBM Plex Mono",monospace; font-size:.76rem; letter-spacing:.06em; text-transform:uppercase;
+    text-decoration:none; color:var(--muted);
+    padding:8px 12px; border:1px solid transparent; border-radius:3px;
+  }
+  .navlink:hover{ color:var(--fg); border-color:var(--border); }
+  .navlink.active{ color:var(--accent-ink); background:var(--accent); border-color:var(--accent); }
+  .navlink:focus-visible{ outline:2px solid var(--cyan); outline-offset:2px; }
+
+  .ticker{
+    border-bottom:1px solid var(--border);
+    background:var(--surface);
+    font-family:"IBM Plex Mono",monospace;
+    font-size:.72rem; letter-spacing:.05em; color:var(--muted);
+    display:flex; gap:28px; overflow-x:auto;
+    padding:8px 20px;
+  }
+  .ticker strong{ color:var(--cyan); font-variant-numeric:tabular-nums; margin-left:6px; }
+  .ticker span{ white-space:nowrap; }
+
+  main{ padding-block:36px 64px; }
+  .page{ display:flex; flex-direction:column; gap:28px; }
+
+  /* ---------- panel (HUD module) ---------- */
+  .panel{
+    position:relative;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:4px;
+    padding:24px;
+  }
+  .panel::before, .panel::after{
+    content:""; position:absolute; width:14px; height:14px;
+    border:2px solid var(--accent); opacity:.65; pointer-events:none;
+  }
+  .panel::before{ top:-1px; left:-1px; border-right:none; border-bottom:none; }
+  .panel::after{ bottom:-1px; right:-1px; border-left:none; border-top:none; }
+
+  /* ---------- hero ---------- */
+  .hero h1{ font-size:clamp(1.7rem, 4vw, 2.6rem); }
+  .stat-row{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(130px,1fr));
+    gap:1px; background:var(--border); border:1px solid var(--border);
+    margin-block:22px; border-radius:3px; overflow:hidden;
+  }
+  .stat{ background:var(--surface); padding:14px 16px; display:flex; flex-direction:column; gap:4px; }
+  .stat-value{ font-family:"Big Shoulders Display",sans-serif; font-weight:900; font-size:1.8rem; color:var(--cyan); font-variant-numeric:tabular-nums; }
+  .stat-label{ font-size:.74rem; color:var(--muted); font-family:"IBM Plex Mono",monospace; letter-spacing:.03em; }
+
+  .cta-row{ display:flex; flex-wrap:wrap; gap:10px; }
+  .cta{
+    font-family:"IBM Plex Mono",monospace; font-size:.78rem; letter-spacing:.04em; text-transform:uppercase;
+    text-decoration:none; color:var(--fg); border:1px solid var(--border); padding:10px 14px; border-radius:3px;
+  }
+  .cta:hover{ border-color:var(--accent); color:var(--accent); }
+
+  .contact-row{ display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; }
+  .contact-item{
+    font-family:"IBM Plex Mono",monospace; font-size:.84rem;
+    background:none; border:1px solid var(--border); color:var(--fg);
+    padding:9px 12px; border-radius:3px; cursor:pointer; text-decoration:none;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .contact-item.muted{ border-color:transparent; padding-inline:0; color:var(--muted); cursor:default; }
+  .copy-hint{ color:var(--cyan); font-size:.7rem; }
+  .contact-item:hover:not(.muted){ border-color:var(--cyan); }
+
+  /* ---------- timeline ---------- */
+  .timeline{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:18px; }
+  .t-meta{ display:flex; flex-wrap:wrap; gap:4px 14px; align-items:baseline; margin-bottom:12px; }
+  .t-date{ font-family:"IBM Plex Mono",monospace; font-size:.72rem; letter-spacing:.06em; color:var(--cyan); }
+  .t-role{ font-family:"Big Shoulders Display",sans-serif; font-weight:800; font-size:1.25rem; }
+  .t-points{ margin:0; padding-left:1.1em; display:flex; flex-direction:column; gap:7px; color:var(--fg); }
+  .t-points li::marker{ color:var(--accent); }
+
+  /* ---------- grids ---------- */
+  .grid-2{ display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:18px; }
+  .feature-list{ margin:0; padding-left:1.1em; display:flex; flex-direction:column; gap:10px; }
+  .feature-list li::marker{ color:var(--cyan); }
+
+  /* ---------- maestro concept panel ---------- */
+  .concept-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;
+  }
+  .concept-pane{
+    border:1px solid var(--border); border-radius:3px; background:var(--surface-2);
+    padding:12px; min-height:120px; display:flex; flex-direction:column; gap:8px;
+    font-family:"IBM Plex Mono",monospace; font-size:.68rem; color:var(--muted);
+  }
+  .concept-pane .pane-title{ letter-spacing:.08em; text-transform:uppercase; color:var(--fg); }
+  .gauge{ width:56px; height:56px; border-radius:50%; margin:4px auto;
+    background:conic-gradient(var(--cyan) 0 68%, var(--border) 68% 100%);
+    display:flex; align-items:center; justify-content:center; }
+  .gauge span{ background:var(--surface-2); width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.62rem; color:var(--fg); }
+  .radar{ position:relative; width:100%; height:70px; border:1px solid var(--border); border-radius:3px; overflow:hidden; background:
+    repeating-radial-gradient(circle at 20% 50%, transparent 0 10px, var(--border) 10px 11px); }
+  .radar .blip{ position:absolute; width:5px; height:5px; border-radius:50%; background:var(--accent); top:30%; left:55%; box-shadow:0 0 6px var(--accent); }
+  .detect-row{ display:flex; justify-content:space-between; border-top:1px dashed var(--border); padding-top:6px; }
+  .bar{ height:6px; background:var(--border); border-radius:3px; overflow:hidden; }
+  .bar i{ display:block; height:100%; background:var(--cyan); }
+
+  .meta-row{ display:flex; flex-wrap:wrap; gap:24px; justify-content:space-between; }
+  .badges{ display:flex; flex-wrap:wrap; gap:8px; }
+  .badges span{
+    font-family:"IBM Plex Mono",monospace; font-size:.72rem; letter-spacing:.03em;
+    border:1px solid var(--border); border-radius:3px; padding:6px 10px; color:var(--fg);
+  }
+  .badge-muted{
+    font-family:"IBM Plex Mono",monospace; font-size:.74rem; color:var(--muted);
+    border:1px dashed var(--border); border-radius:3px; padding:6px 10px; display:inline-block;
+  }
+
+  /* ---------- project cards ---------- */
+  .project-card h3{ font-size:1.25rem; margin-bottom:.3em; }
+  .project-card p{ margin:.5em 0; }
+  .project-card.invaders{
+    background:
+      linear-gradient(var(--surface),var(--surface)) padding-box,
+      repeating-linear-gradient(90deg, var(--accent) 0 3px, transparent 3px 7px) border-box;
+    border:3px solid transparent;
+  }
+  .project-card.invaders .eyebrow{ color:var(--cyan); }
+
+  footer.footer{
+    border-top:1px solid var(--border);
+    font-family:"IBM Plex Mono",monospace; font-size:.74rem; color:var(--muted);
+    padding:20px; display:flex; flex-wrap:wrap; gap:8px 20px; justify-content:space-between;
+  }
+
+  @media (max-width:560px){
+    .concept-grid{ grid-template-columns:1fr; }
+    .topbar-inner{ flex-direction:column; align-items:flex-start; }
+  }
+
+  @media (prefers-reduced-motion:no-preference){
+    .page{ animation:fadein .25s ease-out; }
+    @keyframes fadein{ from{ opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;} }
+  }
+</style>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-name">ETHAN LIBERMAN</span>
+      <span class="brand-tag">ELECTRICAL &amp; COMPUTER SYSTEMS · CYBERSECURITY — MONASH UNIVERSITY</span>
+    </div>
+    <nav class="navbar" aria-label="Sections">
+      <a class="navlink" href="#overview" data-target="overview">Overview</a>
+      <a class="navlink" href="#muas" data-target="muas">Monash UAS</a>
+      <a class="navlink" href="#maestro" data-target="maestro">Maestro</a>
+      <a class="navlink" href="#projects" data-target="projects">Projects</a>
+    </nav>
+  </div>
+  <div class="ticker" role="note" aria-label="Key figures">
+    <span>TEAM LED<strong>120</strong></span>
+    <span>BUDGET MANAGED<strong>$31K</strong></span>
+    <span>SPONSORSHIP SECURED<strong>$15K+</strong></span>
+    <span>YEARS AT MUAS<strong>03</strong></span>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section id="overview" class="page">
+    <div class="hero panel">
+      <p class="eyebrow">Penultimate year — Engineering (Hons) + Information Technology</p>
+      <h1>Three years inside Monash UAS, building the systems that get humanitarian aircraft into the air.</h1>
+      <p class="lede">I'm an Electrical &amp; Computer Systems and Cybersecurity student who's spent most of my degree outside the lecture theatre — leading avionics teams, writing ground control software, and taking a motorcycle apart to understand it. This is a record of that work, not a transcript.</p>
+      <div class="stat-row">
+        <div class="stat"><span class="stat-value">120</span><span class="stat-label">Engineers currently led</span></div>
+        <div class="stat"><span class="stat-value">$31K</span><span class="stat-label">Budget managed</span></div>
+        <div class="stat"><span class="stat-value">$15K+</span><span class="stat-label">Sponsorship secured</span></div>
+        <div class="stat"><span class="stat-value">3</span><span class="stat-label">Aircraft platforms in development</span></div>
+      </div>
+      <div class="cta-row">
+        <a class="cta" href="#muas">Monash UAS record →</a>
+        <a class="cta" href="#maestro">Maestro case study →</a>
+        <a class="cta" href="#projects">Personal builds →</a>
+      </div>
+    </div>
+
+    <div class="contact panel">
+      <p class="eyebrow">Contact</p>
+      <div class="contact-row">
+        <button id="copyEmail" class="contact-item" type="button">ethan.liberman@gmail.com <span class="copy-hint">copy</span></button>
+        <a class="contact-item" href="tel:+61498238741" target="_blank" rel="noopener">0498 238 741</a>
+        <a class="contact-item" href="https://linkedin.com/in/eth-lib/" target="_blank" rel="noopener">linkedin.com/in/eth-lib</a>
+        <span class="contact-item muted">Brighton East, VIC</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="muas" class="page" hidden>
+    <p class="eyebrow">Monash Uncrewed Aerial Systems — 2023–Present</p>
+    <h2>A volunteer, student-run engineering team building humanitarian aircraft.</h2>
+    <p class="lede">Monash UAS designs, builds and operates uncrewed aerial vehicles for medical aid delivery and search-and-rescue, competing against student teams internationally. I've stayed with it for three years, across three different roles — each one building on the last.</p>
+
+    <ol class="timeline">
+      <li class="t-item panel">
+        <div class="t-meta"><span class="t-date">SEP 2025 — PRESENT</span><span class="t-role">Team Lead</span></div>
+        <ul class="t-points">
+          <li>Leads 120 engineers across four technical departments and one business department.</li>
+          <li>Manages a $31,000 budget supporting simultaneous development of three humanitarian aircraft platforms.</li>
+          <li>Engages directly with university faculty, government bodies and sponsors including CubePilot, Altium and Leap Australia.</li>
+          <li>Coordinating international travel and freight logistics to compete at SUAS 2026 in Tulsa, Oklahoma.</li>
+        </ul>
+      </li>
+      <li class="t-item panel">
+        <div class="t-meta"><span class="t-date">SEP 2024 — SEP 2025</span><span class="t-role">Avionics Section Lead</span></div>
+        <ul class="t-points">
+          <li>Managed and mentored a 45-person Avionics team.</li>
+          <li>Delivered hardware/software integration across control surfaces, gimballed camera, wiring harness, propulsion, AI vision, detect-and-avoid and mission management systems.</li>
+          <li>Built <a href="#maestro" style="color:var(--cyan)">Maestro</a>, the section's ground control GUI, as a team project this year.</li>
+          <li>Prepared Avionics systems for the New Flying Competition, Hamburg, Germany, 2025.</li>
+          <li>Personally secured over $15,000 of in-kind government sponsorship to improve search-and-rescue outcomes.</li>
+        </ul>
+      </li>
+      <li class="t-item panel">
+        <div class="t-meta"><span class="t-date">SEP 2023 — SEP 2024</span><span class="t-role">People + Culture Officer (Inaugural)</span></div>
+        <ul class="t-points">
+          <li>First to hold the role — built it from nothing.</li>
+          <li>Handled interpersonal conflict and team culture across the full membership, working alongside Upper Management.</li>
+          <li>Helped rewrite the MUAS Code of Conduct.</li>
+          <li>Introduced the team's first annual retreat, weekly social rock climbing and board game nights.</li>
+        </ul>
+      </li>
+    </ol>
+  </section>
+
+  <section id="maestro" class="page" hidden>
+    <p class="eyebrow">Avionics section project — 2025</p>
+    <h2>Maestro</h2>
+    <p class="lede">A PyQt6 ground control application built for Monash UAS's search-and-rescue missions — one screen for live telemetry, mission management and AI-flagged detections of missing persons, fielded at this year's SUAS competition.</p>
+
+    <div class="concept panel" aria-hidden="true">
+      <p class="eyebrow">Interface concept</p>
+      <div class="concept-grid">
+        <div class="concept-pane">
+          <span class="pane-title">Telemetry</span>
+          <div class="gauge"><span>74%</span></div>
+          <span>BATT · ALT · AIRSPD — live via MAVLink</span>
+        </div>
+        <div class="concept-pane">
+          <span class="pane-title">Mission map</span>
+          <div class="radar"><span class="blip"></span></div>
+          <span>Live position + planned route</span>
+        </div>
+        <div class="concept-pane">
+          <span class="pane-title">AI detections (example)</span>
+          <div class="detect-row"><span>DETECTION 01</span><span>92%</span></div>
+          <div class="detect-row"><span>DETECTION 02</span><span>78%</span></div>
+          <span>Operator confirms before action</span>
+        </div>
+        <div class="concept-pane">
+          <span class="pane-title">Gimbal control</span>
+          <div class="bar"><i style="width:60%"></i></div>
+          <div class="bar"><i style="width:35%"></i></div>
+          <span>Pan / tilt — SiYi A8 Mini</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <p class="eyebrow">What it does</p>
+        <ul class="feature-list">
+          <li><strong>Telemetry dashboard</strong> — live aircraft state via MAVLink, bridged through MAVProxy to Mission Planner.</li>
+          <li><strong>Live mission management</strong> — operators adjust and monitor missions mid-flight without leaving the GUI.</li>
+          <li><strong>AI detection review</strong> — surfaces the vision model's detections of missing persons for operator confirmation.</li>
+          <li><strong>Gimbal &amp; camera control</strong> — drives the SiYi A8 Mini gimbal and a live RTSP video feed from the vision camera.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <p class="eyebrow">Hardest parts</p>
+        <ul class="feature-list">
+          <li><strong>Live video over RTSP</strong> — getting the vision camera's feed into the GUI without lag an operator could act on.</li>
+          <li><strong>An incomplete gimbal SDK</strong> — the SiYi A8 Mini's SDK only exposed two of its three axes, so full gimbal control had to be built around that gap.</li>
+          <li><strong>Deployment accuracy</strong> — offsetting the camera's geolocation error and compensating for wind drift, so humanitarian aid actually lands on the located patient.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel meta-row">
+      <div class="stack">
+        <p class="eyebrow">Stack</p>
+        <div class="badges">
+          <span>Python</span><span>PyQt6</span><span>MAVLink / MAVProxy</span><span>RTSP</span><span>SiYi SDK</span>
+        </div>
+      </div>
+      <div class="source">
+        <p class="eyebrow">Source</p>
+        <span class="badge-muted">Private repository — MUAS internal</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="projects" class="page" hidden>
+    <p class="eyebrow">Outside MUAS</p>
+    <h2>What I build when nobody's asking me to.</h2>
+    <p class="lede">Smaller, self-directed, and occasionally unfinished — which is part of the point.</p>
+
+    <div class="grid-2">
+      <article class="panel project-card">
+        <p class="eyebrow">Mechanical</p>
+        <h3>2004 Honda CB250 Nighthawk — full rebuild</h3>
+        <p>Already running and roadworthy when I bought it — I took it apart anyway. Stripped it completely down to the frame and engine, then rebuilt it piece by piece: new parts wherever the originals wouldn't pass muster, every reusable part cleaned and refitted by hand.</p>
+        <p class="muted small">Why: I wanted to actually understand a machine I already owned, not just ride it.</p>
+      </article>
+      <article class="panel project-card invaders">
+        <p class="eyebrow">Software · Paused</p>
+        <h3>Space Invaders, in C++</h3>
+        <p>Already comfortable with OOP from Java and Python, and with C — this was my way into C++. Built the game loop and rendering with SDL.</p>
+        <p class="muted small">Status: stalled trying to get sprite sheets rendering cleanly. Open problem, not abandoned.</p>
+      </article>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <span>Based in Melbourne · Brighton East, VIC</span>
+  <span>Open to Software &amp; Data Engineering internships, Summer 2026/27</span>
+</footer>
+
+<script>
+(function(){
+  var pages = ['overview','muas','maestro','projects'];
+
+  function showPage(id){
+    if(pages.indexOf(id) === -1) id = 'overview';
+    pages.forEach(function(p){
+      var sec = document.getElementById(p);
+      if(sec) sec.hidden = (p !== id);
+    });
+    document.querySelectorAll('.navlink').forEach(function(a){
+      a.classList.toggle('active', a.getAttribute('data-target') === id);
+    });
+  }
+
+  function fromHash(){
+    var id = (location.hash || '#overview').slice(1);
+    showPage(id);
+  }
+
+  window.addEventListener('hashchange', fromHash);
+
+  function start(){
+    fromHash();
+
+    var emailBtn = document.getElementById('copyEmail');
+    if(emailBtn){
+      emailBtn.addEventListener('click', function(){
+        var text = 'ethan.liberman@gmail.com';
+        var hint = emailBtn.querySelector('.copy-hint');
+        function flash(msg){
+          if(!hint) return;
+          var prev = hint.textContent;
+          hint.textContent = msg;
+          setTimeout(function(){ hint.textContent = prev; }, 1400);
+        }
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(text).then(function(){
+            flash('copied');
+          }).catch(function(){
+            flash('select & copy');
+          });
+        } else {
+          flash('select & copy');
+        }
+      });
+    }
+
+    var phoneBtn = document.getElementById('copyPhone');
+    if(phoneBtn){
+      phoneBtn.addEventListener('click', function(){
+        var text = '+61 498 238 741';
+        var hint = phoneBtn.querySelector('.copy-hint');
+        function flash(msg){
+          if(!hint) return;
+          var prev = hint.textContent;
+          hint.textContent = msg;
+          setTimeout(function(){ hint.textContent = prev; }, 1400);
+        }
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(text).then(function(){
+            flash('copied');
+          }).catch(function(){
+            flash('select & copy');
+          });
+        } else {
+          flash('select & copy');
+        }
+      });
+    }
+  }
+
+  if (window.claude && window.claude.hot && window.claude.hot.ready){
+    window.claude.hot.ready(start);
+  } else {
+    start();
+  }
+})();
+</script>
+
+</body></html>
